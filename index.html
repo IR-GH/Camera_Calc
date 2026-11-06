@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Camera Calc</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Storage calculator for cinema cameras: pick camera, raster, frame rate and codec, enter a duration and get the gigabytes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: two columns on desktop. Left is the seven-step selection sheet; right is a
+   camera-monitor style readout that stays in view. Stacks to one column on phones. */
+:root {
+  --bg: #e8ebee;
+  --panel: #f7f8f9;
+  --ink: #14181d;
+  --muted: #59626d;
+  --line: #cdd3d9;
+  --field: #ffffff;
+  --accent: #c4321e;        /* tally / REC red */
+  --accent-ink: #ffffff;
+  --mon-bg: #161a1f;        /* the readout reads as a monitor in both themes */
+  --mon-fg: #f2f4f6;
+  --mon-dim: #9aa4af;
+  --mon-line: #2c333b;
+  --mon-amber: #f0b54a;
+  --ok: #2f7d4f;
+  --warn: #9a6a10;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1215; --panel: #171b20; --ink: #e5e9ed; --muted: #8e98a4; --line: #2a3139;
+    --field: #1d2228; --accent: #e2523d; --accent-ink: #ffffff;
+    --mon-bg: #0a0c0f; --mon-fg: #f3f5f7; --mon-dim: #8d97a2; --mon-line: #262c33; --mon-amber: #f0b54a;
+    --ok: #5cbf86; --warn: #e0a83a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1215; --panel: #171b20; --ink: #e5e9ed; --muted: #8e98a4; --line: #2a3139;
+  --field: #1d2228; --accent: #e2523d; --accent-ink: #ffffff;
+  --mon-bg: #0a0c0f; --mon-fg: #f3f5f7; --mon-dim: #8d97a2; --mon-line: #262c33; --mon-amber: #f0b54a;
+  --ok: #5cbf86; --warn: #e0a83a;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+
+header.top {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+  gap: 8px 24px; padding-bottom: 20px; margin-bottom: 24px; border-bottom: 1px solid var(--line);
+}
+.brandmark { display: flex; align-items: center; gap: 12px; }
+.rec { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+h1 {
+  font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line-height: 1;
+  letter-spacing: 0.01em; text-transform: uppercase; margin: 0;
+}
+.tagline { color: var(--muted); margin: 0; max-width: 46ch; font-size: 0.95rem; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 28px; align-items: start; }
+@media (max-width: 880px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Step sheet */
+.sheet { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.step {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 14px; align-items: center;
+  padding: 14px 18px; border-bottom: 1px solid var(--line);
+}
+.step:last-child { border-bottom: 0; }
+.num {
+  grid-row: span 2; align-self: start; margin-top: 2px;
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 600; font-size: 1.05rem;
+  border: 1.5px solid var(--line); color: var(--muted);
+}
+.step.done .num { border-color: var(--ink); color: var(--ink); }
+.step.final .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.step label, .step .lbl {
+  font-family: var(--font-display); font-weight: 600; font-size: 0.95rem;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.field { position: relative; min-width: 0; }
+.field select {
+  appearance: none; -webkit-appearance: none; width: 100%;
+  font: 500 1rem/1.3 var(--font-body); color: var(--ink);
+  background: var(--field); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 10px 40px 10px 12px; cursor: pointer; text-overflow: ellipsis;
+}
+.field::after {
+  content: ""; position: absolute; right: 15px; top: 50%; width: 8px; height: 8px; pointer-events: none;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-70%) rotate(45deg);
+}
+.field select:hover { border-color: var(--muted); }
+select:focus-visible, input:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.hint { grid-column: 2; color: var(--muted); font-size: 0.82rem; margin: 2px 0 0; }
+
+.duration { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.duration input {
+  width: 9ch; font: 500 1.05rem/1.3 var(--font-data); color: var(--ink); font-variant-numeric: tabular-nums;
+  background: var(--field); border: 1px solid var(--line); border-radius: var(--radius); padding: 9px 10px;
+}
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.seg button {
+  font: 600 0.9rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 11px 14px; border: 0; background: var(--field); color: var(--muted); cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button {
+  font: 500 0.82rem/1 var(--font-data); padding: 7px 9px; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+}
+.chips button:hover { color: var(--ink); border-color: var(--muted); }
+
+/* Monitor readout */
+.monitor {
+  position: sticky; top: calc(16px + env(safe-area-inset-top, 0px));
+  background: var(--mon-bg); color: var(--mon-fg); border-radius: 10px; padding: 18px 20px 20px;
+  font-family: var(--font-body);
+}
+@media (max-width: 880px) { .monitor { position: static; } }
+.osd {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  font-family: var(--font-data); font-size: 0.75rem; color: var(--mon-dim); letter-spacing: 0.04em;
+  text-transform: uppercase; padding-bottom: 12px; border-bottom: 1px solid var(--mon-line);
+}
+.osd .live { color: var(--mon-amber); }
+.total-label {
+  margin: 16px 0 0; font-family: var(--font-display); font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; font-size: 0.85rem; color: var(--mon-dim);
+}
+.total {
+  font-family: var(--font-display); font-weight: 700; font-size: clamp(3rem, 9vw, 4.4rem); line-height: 1;
+  letter-spacing: 0.005em; font-variant-numeric: tabular-nums; margin: 4px 0 2px; overflow-wrap: anywhere;
+}
+.total .unit { font-size: 0.45em; font-weight: 600; color: var(--mon-dim); margin-left: 6px; letter-spacing: 0.06em; }
+.alt { font-family: var(--font-data); font-size: 0.85rem; color: var(--mon-dim); font-variant-numeric: tabular-nums; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--mon-line); margin: 18px 0 14px; border: 1px solid var(--mon-line); border-radius: 6px; overflow: hidden; }
+.stat { background: var(--mon-bg); padding: 10px 12px; min-width: 0; }
+.stat dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mon-dim); font-family: var(--font-display); font-weight: 600; }
+.stat dd { margin: 2px 0 0; font-family: var(--font-data); font-size: 0.98rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.summary { font-size: 0.86rem; color: var(--mon-fg); margin: 0 0 10px; overflow-wrap: anywhere; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; font-family: var(--font-data);
+  padding: 4px 8px; border-radius: 99px; border: 1px solid var(--mon-line); color: var(--mon-dim);
+}
+.badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mon-dim); }
+.badge.pub::before { background: #4fbf7f; }
+.badge.scaled::before { background: var(--mon-amber); }
+.badge.est::before { background: #e2523d; }
+.notes { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.8rem; color: var(--mon-dim); }
+.notes li { padding-left: 14px; position: relative; }
+.notes li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 6px; height: 1px; background: var(--mon-dim); }
+.actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.btn {
+  font: 600 0.85rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 10px 14px; border-radius: 6px; cursor: pointer; border: 1px solid var(--mon-line);
+  background: transparent; color: var(--mon-fg);
+}
+.btn:hover { border-color: var(--mon-dim); }
+.empty { color: var(--mon-dim); font-size: 0.9rem; margin-top: 16px; }
+
+/* Method section */
+.method { margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.method h2 {
+  font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: 1.25rem; margin: 0 0 8px; text-wrap: balance;
+}
+.method p, .method li { color: var(--muted); font-size: 0.9rem; max-width: 62ch; }
+.method ul { padding-left: 18px; margin: 0; display: grid; gap: 4px; }
+.method code { font-family: var(--font-data); font-size: 0.85em; color: var(--ink); }
+.formula {
+  font-family: var(--font-data); font-size: 0.85rem; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 10px 12px; color: var(--ink); overflow-x: auto; white-space: nowrap;
+}
+footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.8rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .total { transition: color .2s; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brandmark"><span class="rec" aria-hidden="true"></span><h1>Camera Calc</h1></div>
+    <p class="tagline">Storage per recording format, from manufacturer data. Pick the camera, raster, frame rate and codec, then enter how long you'll roll.</p>
+  </header>
+
+  <div class="grid">
+    <form class="sheet" id="sheet" autocomplete="off">
+      <div class="step" id="s-brand"><span class="num">1</span><label for="brand">Camera brand</label>
+        <div class="field"><select id="brand"></select></div></div>
+      <div class="step" id="s-model"><span class="num">2</span><label for="model">Camera model</label>
+        <div class="field"><select id="model"></select></div></div>
+      <div class="step" id="s-raster"><span class="num">3</span><label for="raster">Raster</label>
+        <div class="field"><select id="raster"></select></div></div>
+      <div class="step" id="s-fps"><span class="num">4</span><label for="fps">Frame rate (fps)</label>
+        <div class="field"><select id="fps"></select></div></div>
+      <div class="step" id="s-codec"><span class="num">5</span><label for="codec">Codec</label>
+        <div class="field"><select id="codec"></select></div></div>
+      <div class="step" id="s-dur"><span class="num">6</span><label for="dur">Duration</label>
+        <div class="duration">
+          <input id="dur" type="number" inputmode="decimal" min="0" step="any" value="60" aria-describedby="dur-hint">
+          <div class="seg" role="group" aria-label="Duration unit">
+            <button type="button" id="u-min" aria-pressed="true">Min</button>
+            <button type="button" id="u-hr" aria-pressed="false">Hours</button>
+          </div>
+          <div class="chips" aria-label="Quick durations">
+            <button type="button" data-min="10">10 min</button>
+            <button type="button" data-min="60">1 h</button>
+            <button type="button" data-min="240">4 h</button>
+            <button type="button" data-min="600">10 h</button>
+          </div>
+        </div>
+        <p class="hint" id="dur-hint">Recorded time, not shoot-day length. Decimals work: 1.5 hours = 90 min.</p>
+      </div>
+      <div class="step final" id="s-total"><span class="num">7</span><span class="lbl">Total storage</span>
+        <p class="hint" style="grid-column:2;margin:0">Shown in the readout. GB are decimal (1 GB = 1,000,000,000 bytes), as printed on cards and drives.</p>
+      </div>
+    </form>
+
+    <aside class="monitor" aria-live="polite">
+      <div class="osd"><span id="osd-cam">—</span><span class="live" id="osd-fmt">—</span></div>
+      <p class="total-label">Total storage</p>
+      <div class="total" id="total">—</div>
+      <div class="alt" id="alt">&nbsp;</div>
+      <dl class="stats">
+        <div class="stat"><dt>Data rate</dt><dd id="st-rate">—</dd></div>
+        <div class="stat"><dt>Per hour</dt><dd id="st-hour">—</dd></div>
+        <div class="stat"><dt>Per minute</dt><dd id="st-min">—</dd></div>
+        <div class="stat"><dt>Frames</dt><dd id="st-frames">—</dd></div>
+      </dl>
+      <p class="summary" id="summary"></p>
+      <span class="badge" id="prov">—</span>
+      <ul class="notes" id="notes"></ul>
+      <div class="actions"><button type="button" class="btn" id="copy">Copy result</button></div>
+    </aside>
+  </div>
+
+  <section class="method" aria-label="How the numbers are worked out">
+    <div>
+      <h2>The maths</h2>
+      <p>Every format is reduced to a data rate in megabits per second at the chosen frame rate, then:</p>
+      <div class="formula">GB = Mb/s × seconds ÷ 8 ÷ 1000</div>
+      <p>Windows reports sizes in GiB (1024³ bytes), so the GiB figure is shown too. macOS and card labels use GB.</p>
+    </div>
+    <div>
+      <h2>Where the rates come from</h2>
+      <ul>
+        <li><b>RAW</b> (ARRIRAW, X-OCN, R3D, Cinema RAW Light): the size per frame from the maker, times the frame rate. ARRIRAW is uncompressed, so it is worked out from photosites × bit depth plus the ARRI frame header.</li>
+        <li><b>Intra codecs</b> (XAVC-I, ProRes): fixed size per frame, so the rate scales with fps.</li>
+        <li><b>Long GOP codecs</b> (XAVC S/HS/L, XF-AVC LGOP, HEVC): the bitrate printed in the camera manual for that frame-rate band.</li>
+        <li><b>ProRes</b>: ARRI and Sony VENICE 2 publish rates about 12% above Apple's white-paper targets (what their record-time displays use). Other cameras use Apple's targets.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Things to know</h2>
+      <ul>
+        <li>Only the combinations each camera can record are offered. Options over a camera's media write speed are hidden.</li>
+        <li>High-speed modes (S&amp;Q, Slow &amp; Fast) are calculated per second of real shooting time.</li>
+        <li>ProRes, XAVC and HEVC are variable bit rate; real files land close to, and usually just under, these figures.</li>
+        <li>Badges show how firm each figure is: <b>green</b> published, <b>amber</b> scaled from a published figure, <b>red</b> estimate.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>Camera Calc · data checked November 2026 against ARRI, Sony, Canon and RED documentation. Always confirm against the current camera firmware before a big job.</footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ---------- rate helpers: each returns f(fps) -> Mb/s, or null when not recordable ---------- */
+const perFrame = (mbit) => (f) => mbit * f;                  // fixed Mbit per frame
+const at = (mbps, fps) => perFrame(mbps / fps);              // published Mb/s at a given fps
+const bpp = (w, h, bits) => (f) => (w * h * bits * f) / 1e6; // bits per photosite / pixel
+const table = (t) => (f) => (t[String(f)] ?? null);          // exact per-fps table
+const flat = (mbps, maxF = 60.01) => (f) => (f <= maxF ? mbps : null);
+// Canon style bands: lo at <=30p, hi at 50/60p, above 60 fps (Slow & Fast) the 60p frame size is kept.
+const band = (lo, hi, hfr = true) => (f) => f <= 30.01 ? lo : f <= 60.01 ? hi : hfr ? (hi / 59.94) * f : null;
+
+const PR = {
+  apple: { proxy: 0.730, lt: 1.648, "422": 2.369, hq: 3.551, "4444": 5.326, xq: 7.992 },
+  arri:  { lt: 1.849, "422": 2.652, hq: 3.979, "4444": 5.968, xq: 8.962 },
+  sony:  { hq: 4.0, "4444": 6.0, xq: 9.0 },
+};
+const PRN = { proxy: "ProRes 422 Proxy", lt: "ProRes 422 LT", "422": "ProRes 422", hq: "ProRes 422 HQ", "4444": "ProRes 4444", xq: "ProRes 4444 XQ" };
+const ARRIRAW_HEADER = 221000; // bytes per frame, fits ARRI's published MB/frame figures
+const arriraw = (w, h, bits) => perFrame(((w * h * bits) / 8 + ARRIRAW_HEADER) * 8 / 1e6);
+const arricore = (w, h) => perFrame((((w * h * 13) / 8 + ARRIRAW_HEADER) * 8 / 1e6) * 0.5);
+// RED legacy REDCODE: W x H x 14 bits / ratio (matches RED's recording-time calculator)
+const redcode = (w, h, ratio) => (f) => (w * h * 14 * f) / ratio / 1e6;
+// R3D NE (KOMODO / V-RAPTOR) bits per photosite, from RED's published MB/s at 6K and 8K 24p
+function r3dne(w, h, q) {
+  const px = w * h;
+  const b = { HQ: 4.002, MQ: 2.81, LQ: 1.755 }[q];
+  if (b) return bpp(w, h, b);
+  const t = Math.min(1, Math.max(0, (px - 19.906e6) / (35.389e6 - 19.906e6)));
+  return bpp(w, h, 1.088 + (0.942 - 1.088) * t); // ELQ
+}
+
+/* ---------- frame-rate sets ---------- */
+const FPS_ARRI = [23.976, 24, 25, 29.97, 30, 47.952, 48, 50, 59.94, 60, 72, 75, 90, 96, 100, 119.88, 120, 150, 180, 200, 240, 300, 330, 480, 600, 660];
+const FPS_RED = [23.976, 24, 25, 29.97, 30, 47.952, 48, 50, 59.94, 60, 72, 75, 90, 96, 100, 119.88, 120, 150, 160, 180, 192, 200, 240, 300, 320, 400, 480, 600];
+const FPS_VENICE = [23.976, 24, 25, 29.97, 30, 47.952, 48, 50, 59.94, 60, 66, 72, 75, 88, 90, 96, 100, 110, 119.88, 120];
+const FPS_SONY = [23.976, 24, 25, 29.97, 50, 59.94, 100, 119.88, 150, 180, 200, 240];
+const FPS_CANON = [23.976, 24, 25, 29.97, 50, 59.94, 100, 119.88, 150, 180];
+
+/* ---------- mode builders ---------- */
+const M = (r, c, max, rate, x = {}) => ({ r, c, max, rate, prov: "pub", ...x });
+const proresSet = (r, w, h, profile, flavours, max, x = {}) =>
+  flavours.map((k) => M(r, PRN[k], typeof max === "object" ? max[k] : max, bpp(w, h, PR[profile][k]), x));
+const xocn = (r, w, h, max, pub, coef, x = {}) =>
+  ["XT", "ST", "LT"].map((q, i) => pub
+    ? M(r, "X-OCN " + q, max, at(pub[i], 24), x)
+    : M(r, "X-OCN " + q, max, bpp(w, h, coef[i]), { prov: "scaled", ...x }));
+const redcodeSet = (r, w, h, max, ratios) => ratios.map((n) => M(r, `REDCODE ${n}:1`, max, redcode(w, h, n)));
+const r3dSet = (r, w, h, max, scaled = false) =>
+  ["HQ", "MQ", "LQ", "ELQ"].map((q) => M(r, "R3D NE " + q, typeof max === "object" ? max[q] : max, r3dne(w, h, q), scaled ? { prov: "scaled" } : {}));
+const crl = (r, hq, st, lt, fps, max, x = {}) => [
+  hq != null && M(r, "Cinema RAW Light HQ", max.HQ ?? max, at(hq, fps), x),
+  st != null && M(r, "Cinema RAW Light ST", max.ST ?? max, at(st, fps), x),
+  lt != null && M(r, "Cinema RAW Light LT", max.LT ?? max, at(lt, fps), x),
+].filter(Boolean);
+
+/* ======================================================================
+   CAMERA DATA
+   rasters: key -> [width, height, label]
+   modes: { r: raster key, c: codec label, max: max fps, rate: fn, prov, cap?, noCap? }
+   cap (Mb/s): combos above the media write speed are hidden
+   ====================================================================== */
+const CAMERAS = [];
+const cam = (o) => CAMERAS.push(o);
+
+/* ----------------------------- ARRI ----------------------------- */
+{
+  const R = {
+    og: [4608, 3164, "4.6K 3:2 Open Gate"], w169: [4608, 2592, "4.6K 16:9"], k4: [4096, 2304, "4K 16:9"],
+    k421: [4096, 2048, "4K 2:1"], uhd: [3840, 2160, "3.8K 16:9 / UHD"], s33: [3328, 2790, "3.3K 6:5"],
+    k3: [3072, 3072, "3K 1:1"], ana239: [4096, 1716, "4K 2.39:1 Ana 2x (de-squeezed)"],
+    ana21: [3840, 1920, "3.8K 2:1 Ana 2x (de-squeezed)"], k2: [2048, 1152, "2K 16:9"], hd: [1920, 1080, "HD 16:9"],
+  };
+  const raw = (k, max) => M(k, "ARRIRAW (13-bit)", max, arriraw(R[k][0], R[k][1], 13));
+  const pr = (k, max) => proresSet(k, R[k][0], R[k][1], "arri", ["xq", "4444", "hq"], max);
+  cam({
+    brand: "ARRI", id: "alexa35", name: "ALEXA 35 (original)", fps: FPS_ARRI, addMax: true, rasters: R,
+    modes: [
+      raw("og", 75), ...pr("og", 60), raw("w169", 75), raw("k4", 120), ...pr("k4", 100),
+      raw("k421", 120), ...pr("k421", 120), raw("uhd", 120), ...pr("uhd", 120),
+      raw("s33", 100), ...pr("s33", 75), raw("k3", 100), ...pr("k3", 90),
+      ...pr("ana239", 90), ...pr("ana21", 100), ...pr("k2", 120), ...pr("hd", 120),
+    ],
+    notes: [
+      "Max frame rates assume a Codex Compact Drive 2TB. The 1TB drive limits ARRIRAW (Open Gate 35 fps, 4K 16:9 55 fps).",
+      "ProRes 4K/UHD is downsampled in camera from the 4K 16:9 or 4.6K 16:9 sensor mode. 4.6K 16:9 records ARRIRAW only.",
+      "ARRIRAW is offloaded the same size. Codex HDE on offload shrinks it to about 60% (not applied here).",
+    ],
+  });
+
+  const X = {
+    og: R.og, w169: R.w169, k4: R.k4, uhd: R.uhd, s33: R.s33, sc239: [3840, 1608, "3.8K 2.39:1"], k2: [2048, 1152, "2K 16:9 S16"], hd: [1920, 1080, "HD 16:9 S16"],
+  };
+  const xt = (k, rawMax, core, od, xq, p4, hq) => {
+    const [w, h] = X[k];
+    return [
+      M(k, "ARRIRAW (13-bit)", rawMax, arriraw(w, h, 13)),
+      M(k, "ARRICORE", core, arricore(w, h), { prov: "est" }),
+      M(k, "ARRICORE + Sensor Overdrive", od, arricore(w, h), { prov: "est", min: core + 0.01 }),
+      ...proresSet(k, w, h, "arri", ["xq", "4444", "hq"], { xq, "4444": p4, hq }),
+    ];
+  };
+  cam({
+    brand: "ARRI", id: "alexa35x", name: "ALEXA 35 Xtreme", fps: FPS_ARRI, addMax: true, rasters: X,
+    modes: [
+      ...xt("og", 80, 120, 165, 120, 120, 120), ...xt("w169", 95, 150, 200, 150, 150, 150),
+      ...xt("k4", 125, 150, 210, 150, 150, 150), ...xt("uhd", 140, 150, 240, 150, 150, 150),
+      ...xt("s33", 120, 120, 210, 120, 120, 120), ...xt("sc239", 190, 240, 240, 240, 240, 240),
+      ...xt("k2", 330, 330, 660, 330, 330, 330), ...xt("hd", 330, 330, 660, 330, 330, 330),
+    ].filter((m) => !(m.min && m.min > m.max)),
+    notes: [
+      "Upgraded ALEXA 35s count as Xtreme. Max frame rates assume a Compact Drive 2TB; the 1TB drive is slower (e.g. ARRIRAW Open Gate 35 fps).",
+      "ARRI publishes ARRICORE only as about half the ARRIRAW data rate, so ARRICORE figures here are estimates.",
+      "Sensor Overdrive runs above the normal ARRICORE limit at 11 stops of dynamic range; it is listed only for frame rates that need it.",
+    ],
+  });
+
+  const L = {
+    og: [4448, 3096, "4.5K LF 3:2 Open Gate"], l239: [4448, 1856, "4.5K LF 2.39:1"], uhd: [3840, 2160, "UHD (3.8K LF 16:9 or 4.3K LF)"],
+    k28: [2880, 2880, "2.8K LF 1:1"], s34: [3424, 2202, "3.4K S35 3:2"], s32: [3200, 1800, "3.2K S35 16:9"],
+    s28: [2880, 2160, "2.8K S35 4:3"], k2: [2048, 1152, "2K 16:9 (from 3.8K LF)"], hd: [1920, 1080, "HD 16:9"],
+  };
+  const lraw = (k, max) => M(k, "ARRIRAW (12-bit)", max, arriraw(L[k][0], L[k][1], 12));
+  const lpr = (k, max) => proresSet(k, L[k][0], L[k][1], "arri", ["xq", "4444", "hq"], max);
+  cam({
+    brand: "ARRI", id: "minilf", name: "ALEXA Mini LF", fps: FPS_ARRI, addMax: true, rasters: L,
+    modes: [
+      lraw("og", 40), ...lpr("og", 40), lraw("l239", 60), ...lpr("l239", 60), lraw("uhd", 60), ...lpr("uhd", 60),
+      lraw("k28", 60), ...lpr("k28", 60), lraw("s34", 60), ...lpr("s32", 75), ...lpr("s28", 75),
+      ...lpr("k2", 90), ...lpr("hd", 100),
+    ],
+    notes: [
+      "Frame-rate limits from ARRI's ALEXA Mini LF recording formats sheet (SUP 7). HD up to 100 fps comes from the 2.8K S35 16:9 mode.",
+      "ARRIRAW frame size matches ARRI's published 20.9 MB per Open Gate frame.",
+    ],
+  });
+
+  const N = {
+    hd: [1920, 1080, "HD 16:9"], k2: [2048, 1152, "2K 16:9"], k243: [2048, 1536, "2K 4:3"], s32: [3200, 1800, "3.2K 16:9"],
+    uhd: [3840, 2160, "4K UHD 16:9"], s28: [2880, 2160, "2.8K 4:3"], r28: [2880, 1620, "2.8K 16:9"], og: [3424, 2202, "3.4K Open Gate"],
+  };
+  const all5 = ["xq", "4444", "hq", "422", "lt"];
+  cam({
+    brand: "ARRI", id: "mini", name: "ALEXA Mini", fps: FPS_ARRI, addMax: true, rasters: N, cap: 2772,
+    modes: [
+      ...proresSet("hd", 1920, 1080, "arri", all5, { xq: 120, "4444": 200, hq: 200, "422": 200, lt: 200 }),
+      ...proresSet("k2", 2048, 1152, "arri", all5, { xq: 120, "4444": 200, hq: 200, "422": 200, lt: 200 }),
+      ...proresSet("k243", 2048, 1536, "arri", all5, { xq: 60, "4444": 120, hq: 150, "422": 150, lt: 150 }),
+      ...proresSet("s32", 3200, 1800, "arri", all5, { xq: 30, "4444": 60, hq: 60, "422": 60, lt: 60 }),
+      ...proresSet("uhd", 3840, 2160, "arri", all5, { xq: 30, "4444": 60, hq: 60, "422": 60, lt: 60 }),
+      ...proresSet("s28", 2880, 2160, "arri", all5, 50),
+      M("s28", "ARRIRAW (12-bit)", 48, arriraw(2880, 2160, 12)),
+      M("r28", "ARRIRAW (12-bit)", 48, arriraw(2880, 1620, 12)),
+      M("og", "ARRIRAW (12-bit)", 30, arriraw(3424, 2202, 12)),
+    ],
+    notes: [
+      "Records to CFast 2.0: combinations above about 346 MB/s are hidden (e.g. ARRIRAW 2.8K 4:3 tops out at 30 fps, UHD ProRes 4444 at 50 fps).",
+      "UHD, 4:3 and ARRIRAW need the matching ARRI licences.",
+    ],
+  });
+
+  cam({
+    brand: "ARRI", id: "amira", name: "AMIRA", fps: FPS_ARRI, addMax: true, cap: 2772,
+    rasters: { hd: N.hd, k2: N.k2, s32: N.s32, uhd: N.uhd, r28: N.r28 },
+    modes: [
+      ...proresSet("hd", 1920, 1080, "arri", all5, { xq: 120, "4444": 200, hq: 200, "422": 200, lt: 200 }),
+      M("hd", "MPEG-2 HD 422 (50 Mb/s)", 29.97, table({ "23.976": 50, "25": 50, "29.97": 50 })),
+      ...proresSet("k2", 2048, 1152, "arri", all5, { xq: 120, "4444": 200, hq: 200, "422": 200, lt: 200 }),
+      ...proresSet("s32", 3200, 1800, "arri", all5, { xq: 30, "4444": 60, hq: 60, "422": 60, lt: 60 }),
+      ...proresSet("uhd", 3840, 2160, "arri", all5, { xq: 30, "4444": 60, hq: 60, "422": 60, lt: 60 }),
+      M("r28", "ARRIRAW (12-bit)", 48, arriraw(2880, 1620, 12)),
+    ],
+    notes: [
+      "Same ProRes encoder and CFast 2.0 media as ALEXA Mini; ARRI's AMIRA figures match (e.g. UHD ProRes 422 HQ 793 Mb/s at 24 fps).",
+      "UHD, high frame rates, MPEG-2 and ARRIRAW are licence options.",
+    ],
+  });
+}
+
+/* ----------------------------- SONY ----------------------------- */
+{
+  // FX3 and A7S III share one recording-format table (Sony Help Guide)
+  const fx3Modes = [
+    M("uhd", "XAVC S-I 4:2:2 10-bit (Intra)", 59.94, table({ "23.976": 240, "25": 250, "29.97": 300, "50": 500, "59.94": 600 })),
+    M("uhd", "XAVC HS 4:2:2 10-bit", 119.88, table({ "23.976": 100, "50": 200, "59.94": 200, "100": 280, "119.88": 280 })),
+    M("uhd", "XAVC HS 4:2:2 10-bit (low)", 59.94, table({ "23.976": 50, "50": 100, "59.94": 100 })),
+    M("uhd", "XAVC HS 4:2:0 10-bit", 119.88, table({ "23.976": 100, "50": 150, "59.94": 150, "100": 200, "119.88": 200 })),
+    M("uhd", "XAVC HS 4:2:0 10-bit (mid)", 59.94, table({ "23.976": 50, "50": 75, "59.94": 75 })),
+    M("uhd", "XAVC HS 4:2:0 10-bit (low)", 59.94, table({ "23.976": 30, "50": 45, "59.94": 45 })),
+    M("uhd", "XAVC S 4:2:2 10-bit", 119.88, table({ "23.976": 100, "25": 140, "29.97": 140, "50": 200, "59.94": 200, "100": 280, "119.88": 280 })),
+    M("uhd", "XAVC S 4:2:0 8-bit", 119.88, table({ "23.976": 100, "25": 100, "29.97": 100, "50": 150, "59.94": 150, "100": 200, "119.88": 200 })),
+    M("uhd", "XAVC S 4:2:0 8-bit (low)", 29.97, table({ "23.976": 60, "25": 60, "29.97": 60 })),
+    M("dci", "XAVC S-I 4:2:2 10-bit (Intra)", 24, table({ "24": 240 })),
+    M("hd", "XAVC S-I 4:2:2 10-bit (Intra)", 59.94, table({ "23.976": 89, "25": 93, "29.97": 111, "50": 185, "59.94": 222 })),
+    M("hd", "XAVC S 4:2:2 10-bit", 59.94, table({ "23.976": 50, "25": 50, "29.97": 50, "50": 50, "59.94": 50 })),
+    M("hd", "XAVC S 4:2:0 8-bit", 119.88, table({ "23.976": 50, "25": 50, "29.97": 50, "50": 50, "59.94": 50, "100": 100, "119.88": 100 })),
+    M("hd", "XAVC S 4:2:0 8-bit (low)", 119.88, table({ "25": 16, "29.97": 16, "50": 25, "59.94": 25, "100": 60, "119.88": 60 })),
+  ];
+  const fxR = { uhd: [3840, 2160, "4K UHD 3840 × 2160"], dci: [4096, 2160, "DCI 4K 4096 × 2160"], hd: [1920, 1080, "HD 1920 × 1080"] };
+  cam({
+    brand: "Sony", id: "fx3", name: "FX3", fps: FPS_SONY, rasters: fxR, modes: fx3Modes,
+    notes: [
+      "23.98p appears only with the NTSC/PAL selector on NTSC; 25p and 50p need PAL.",
+      "DCI 4K 24.00p is XAVC S-I only and needs current firmware. 4K 100/120p crops the sensor about 1.1x.",
+      "Bitrates are Sony's nominal figures from the FX3 Help Guide.",
+    ],
+  });
+  cam({
+    brand: "Sony", id: "a7s3", name: "Alpha 7S III", fps: FPS_SONY, rasters: fxR, modes: fx3Modes,
+    notes: [
+      "Same recording table as the FX3 (Sony Help Guide).",
+      "DCI 4K 24.00p needs Sony's paid DCI 4K add-on licence.",
+    ],
+  });
+
+  const intra4k = { "23.976": 240, "24": 240, "25": 250, "29.97": 300, "50": 500, "59.94": 600 };
+  // XAVC-I HD (Sony FX6 spec): 89/112/111/223/222 Mb/s. PAL rates carry bigger frames than NTSC.
+  // S&Q above 60 fps keeps the larger (50p) frame size: 223/50 = 4.46 Mbit per frame.
+  const hdIntraTab = { "23.976": 89, "25": 112, "29.97": 111, "50": 223, "59.94": 222 };
+  const hdIntra = () => (f) => (f <= 60.01 ? hdIntraTab[String(f)] ?? null : 4.46 * f);
+  const sTab = (v, list = [23.976, 25, 29.97, 50, 59.94]) => table(Object.fromEntries(list.map((f) => [String(f), v])));
+  const lgop4k = table({ "23.976": 100, "25": 100, "29.97": 100, "50": 150, "59.94": 150 });
+  cam({
+    brand: "Sony", id: "fx6", name: "FX6", fps: FPS_SONY, rasters: fxR,
+    modes: [
+      M("dci", "XAVC-I Class 300 (Intra)", 59.94, table(intra4k)),
+      M("uhd", "XAVC-I Class 300 (Intra)", 119.88, table({ ...intra4k, "24": null, "100": 1000, "119.88": 1200 })),
+      M("uhd", "XAVC-L QFHD (Long GOP)", 59.94, lgop4k),
+      M("hd", "XAVC-I HD (Intra)", 240, hdIntra()),
+      M("hd", "XAVC-L HD 50 (Long GOP)", 59.94, sTab(50)),
+      M("hd", "XAVC-L HD 35 (Long GOP)", 59.94, sTab(35)),
+    ],
+    notes: [
+      "UHD at 100/120 fps and HD above 60 fps are S&Q modes. Figures are per second of real shooting time; UHD 120 fps crops the sensor about 10% and needs CFexpress Type A.",
+      "Class 300 is the family name: it means 300 Mb/s at 29.97p. Each 4K frame is about 10 Mbit, so 25p is 250 Mb/s and 23.98p is 240 Mb/s (Sony FX6 spec sheet).",
+    ],
+  });
+  cam({
+    brand: "Sony", id: "fx9", name: "FX9", fps: FPS_SONY, rasters: fxR,
+    modes: [
+      M("dci", "XAVC-I Class 300 (Intra)", 59.94, table(intra4k)),
+      M("uhd", "XAVC-I Class 300 (Intra)", 59.94, table({ ...intra4k, "24": null })),
+      M("uhd", "XAVC-L QFHD (Long GOP)", 59.94, lgop4k),
+      M("hd", "XAVC-I HD (Intra)", 180, hdIntra()),
+      M("hd", "XAVC-L HD 50 (Long GOP)", 59.94, sTab(50)),
+      M("hd", "XAVC-L HD 35 (Long GOP)", 59.94, sTab(35)),
+      M("hd", "MPEG HD422 50 (Long GOP)", 29.97, table({ "23.976": 50, "25": 50, "29.97": 50 })),
+    ],
+    notes: [
+      "4K 50/60p uses the FF 5K crop or S35 scan. HD above 60 fps is S&Q (up to 180 fps); figures are per second of real shooting time.",
+      "Bitrates from Sony's PXW-FX9 data sheet.",
+    ],
+  });
+
+  // BURANO: X-OCN LT only. Rates derived from Sony's record-time figures (about 1.84 bits per photosite).
+  const B = {
+    ff86_169: [8632, 4856, "FF 8.6K 16:9"], ff86_179: [8632, 4552, "FF 8.6K 17:9"],
+    ffc6_169: [6052, 3404, "FFc 6K 16:9"], ffc6_179: [6052, 3192, "FFc 6K 17:9"], ff58_65: [5828, 4856, "FF 5.8K 6:5"],
+    s58_169: [5760, 3240, "S35 5.8K 16:9"], s58_179: [5760, 3036, "S35 5.8K 17:9"], s43: [4256, 3192, "S35 4.3K 4:3"],
+    k8: [8192, 4320, "8K 8192 × 4320 (XAVC H)"], k8uhd: [7680, 4320, "8K 7680 × 4320 (XAVC H)"],
+    dci: [4096, 2160, "4K 4096 × 2160 (S35c 4K 17:9)"], uhd: [3840, 2160, "UHD 3840 × 2160 (3.8K 16:9)"], hd: [1920, 1080, "HD 1920 × 1080 (S35 1.9K)"],
+  };
+  const lt = (k, max) => M(k, "X-OCN LT", max, bpp(B[k][0], B[k][1], 1.844), { prov: "scaled" });
+  const xavcH = (k) => [
+    M(k, "XAVC H-I HQ (Intra)", 29.97, at(985, 24), { prov: "scaled" }),
+    M(k, "XAVC H-I SQ (Intra)", 29.97, at(663, 24), { prov: "scaled" }),
+    M(k, "XAVC H-L (Long GOP)", 29.97, at(536, 23.976), { prov: "scaled" }),
+  ];
+  cam({
+    brand: "Sony", id: "burano", name: "BURANO", fps: [23.976, 24, 25, 29.97, 50, 59.94, 100, 119.88, 150, 180, 200, 240], rasters: B,
+    modes: [
+      lt("ff86_169", 29.97), lt("ff86_179", 29.97), lt("ffc6_169", 59.94), lt("ffc6_179", 59.94), lt("ff58_65", 29.97),
+      lt("s58_169", 59.94), lt("s58_179", 59.94), lt("s43", 59.94), lt("dci", 120), lt("uhd", 120), lt("hd", 240),
+      ...xavcH("k8"), ...xavcH("k8uhd"),
+      M("dci", "XAVC-I Class 300 (Intra)", 59.94, table(intra4k)),
+      M("dci", "XAVC-L (Long GOP)", 59.94, lgop4k),
+      M("uhd", "XAVC-I Class 300 (Intra)", 119.88, table({ ...intra4k, "24": null, "100": 1000, "119.88": 1200 })),
+      M("uhd", "XAVC-L (Long GOP)", 59.94, lgop4k),
+      M("hd", "XAVC-I HD (Intra)", 240, hdIntra()),
+      M("hd", "XAVC-L HD 50 (Long GOP)", 59.94, sTab(50)),
+    ],
+    notes: [
+      "BURANO records X-OCN LT only. Sony gives BURANO X-OCN as record times per card, so rates are derived from those (within about 2%).",
+      "XAVC H 8K tops out at 30p. UHD above 60 fps and HD above 60 fps are S&Q; figures are per second of real shooting time.",
+    ],
+  });
+
+  // VENICE 2 8K (MPC-3628)
+  const V8 = {
+    a: [8640, 5760, "8.6K 3:2 FF"], b: [8640, 4556, "8.6K 17:9 FF"], c: [8192, 4320, "8.2K 17:9 FF"], d: [8100, 4556, "8.1K 16:9 FF"],
+    e: [8192, 3432, "8.2K 2.39:1 FF"], f: [7680, 4320, "7.6K 16:9 FF"], g: [5792, 4854, "5.8K 6:5 S35"], h: [5792, 4276, "5.8K 4:3 S35"],
+    i: [5792, 3056, "5.8K 17:9 S35"], j: [5480, 2296, "5.5K 2.39:1 S35"], k: [5434, 3056, "5.4K 16:9 S35"],
+    pr4k: [4096, 2160, "4K 4096 × 2160 (ProRes)"], prqfhd: [3840, 2160, "QFHD 3840 × 2160 (ProRes)"],
+  };
+  const c8 = [4.475, 3.063, 1.804];
+  const v8 = (k, max, pub) => xocn(k, V8[k][0], V8[k][1], max, pub, c8, { cap: 6700 });
+  cam({
+    brand: "Sony", id: "venice2-8k", name: "VENICE 2 8K", fps: FPS_VENICE, rasters: V8,
+    modes: [
+      ...v8("a", 30, [5345, 3658, 2155]), ...v8("b", 48, [4233, 2897, 1706]), ...v8("c", 60, [3861, 2642, 1556]),
+      ...v8("d", 48), ...v8("e", 72), ...v8("f", 60, [3861, 2642, 1556]), ...v8("g", 48),
+      ...v8("h", 60, [2676, 1832, 1079]), ...v8("i", 90, [1919, 1313, 773]), ...v8("j", 120), ...v8("k", 90),
+      ...proresSet("pr4k", 4096, 2160, "sony", ["xq", "4444", "hq"], 75),
+      ...proresSet("prqfhd", 3840, 2160, "sony", ["xq", "4444", "hq"], 75),
+    ],
+    notes: [
+      "X-OCN rates are Sony's (FDTimes VENICE 2 report / X-OCN white paper). Modes Sony doesn't list are scaled by photosite count.",
+      "Combinations above the AXS S66 card's write speed (about 6.6 Gb/s) are hidden, so X-OCN XT stops at 30p in 8.2K 17:9.",
+      "ProRes is recorded at 4K or QFHD from the chosen imager mode, up to that mode's frame-rate limit (75 fps at most).",
+    ],
+  });
+
+  // VENICE 2 6K (MPC-3626) and VENICE (MPC-3610) share the 6K sensor
+  const V6 = {
+    a: [6048, 4032, "6K 3:2 FF"], b: [6054, 3272, "6K 1.85:1 FF"], c: [6054, 3192, "6K 17:9 FF"], d: [6048, 2534, "6K 2.39:1 FF"],
+    e: [5674, 3192, "5.7K 16:9 FF"], f: [4096, 3432, "4K 6:5 S35"], g: [4096, 3024, "4K 4:3 S35"],
+    dci: [4096, 2160, "4K 17:9 S35 (4096 × 2160)"], uhd: [3840, 2160, "3.8K 16:9 S35 (3840 × 2160)"], h: [4096, 1716, "4K 2.39:1 S35"],
+    hd: [1920, 1080, "HD 1920 × 1080"],
+  };
+  const c6 = [4.496, 3.076, 1.813];
+  const v6 = (k, max, pub, x) => xocn(k, V6[k][0], V6[k][1], max, pub, c6, x);
+  cam({
+    brand: "Sony", id: "venice2-6k", name: "VENICE 2 6K", fps: FPS_VENICE,
+    rasters: Object.fromEntries(Object.entries(V6).filter(([k]) => k !== "hd")),
+    modes: [
+      ...v6("a", 60, [2631, 1800, 1061], { cap: 6700 }), ...v6("b", 72, null, { cap: 6700 }), ...v6("c", 72, [2091, 1431, 843], { cap: 6700 }),
+      ...v6("d", 90, null, { cap: 6700 }), ...v6("e", 60, null, { cap: 6700 }), ...v6("f", 60, null, { cap: 6700 }),
+      ...v6("g", 75, [1342, 919, 541], { cap: 6700 }), ...v6("dci", 120, [965, 661, 389], { cap: 6700 }),
+      ...v6("uhd", 120, [965, 661, 389], { cap: 6700 }), ...v6("h", 120, null, { cap: 6700 }),
+      ...proresSet("dci", 4096, 2160, "sony", ["xq", "4444", "hq"], { xq: 60, "4444": 60, hq: 90 }),
+      ...proresSet("uhd", 3840, 2160, "sony", ["xq", "4444", "hq"], { xq: 60, "4444": 60, hq: 90 }),
+    ],
+    notes: [
+      "X-OCN rates are Sony's for 6K 3:2, 6K 17:9, 4K 4:3, 4K 17:9 and 3.8K 16:9; the other modes are scaled by photosite count.",
+      "Max frame rates from Sony's VENICE 2 6K format poster. 5.7K 16:9 and 4K 6:5 limits are not confirmed and set at 60 fps.",
+      "ProRes 4K/QFHD is downsampled from the chosen imager mode.",
+    ],
+  });
+  cam({
+    brand: "Sony", id: "venice", name: "VENICE (1)", fps: FPS_VENICE,
+    rasters: Object.fromEntries(Object.entries(V6).filter(([k]) => k !== "e")),
+    modes: [
+      ...v6("a", 60, [2631, 1800, 1061], { cap: 4600 }), ...v6("b", 60, null, { cap: 4600 }), ...v6("c", 60, [2091, 1431, 843], { cap: 4600 }),
+      ...v6("d", 60, null, { cap: 4600 }), ...v6("f", 60, null, { cap: 4600 }), ...v6("g", 75, [1342, 919, 541], { cap: 4600 }),
+      ...v6("dci", 110, [965, 660, 389], { cap: 4600 }), ...v6("uhd", 110, [965, 660, 389], { cap: 4600 }), ...v6("h", 120, null, { cap: 4600 }),
+      M("dci", "XAVC-I Class 480 (SxS)", 59.94, table({ "23.976": 384, "24": 384, "25": 400, "29.97": 480, "50": 800, "59.94": 960 })),
+      M("dci", "XAVC-I Class 300 (SxS)", 59.94, table(intra4k)),
+      M("uhd", "XAVC-I Class 480 (SxS)", 59.94, table({ "23.976": 384, "25": 400, "29.97": 480, "50": 800, "59.94": 960 })),
+      M("uhd", "XAVC-I Class 300 (SxS)", 59.94, table({ ...intra4k, "24": null })),
+      ...proresSet("hd", 1920, 1080, "apple", ["4444", "hq", "422"], { "4444": 29.97, hq: 60, "422": 60 }),
+    ],
+    notes: [
+      "X-OCN needs the AXS-R7 recorder. Frame rates above 30 fps need the High Frame Rate licence (6K 3:2 to 60, 4K 4:3 to 75, 4K 17:9 to 110, 4K 2.39:1 to 120).",
+      "Sony limits X-OCN XT in 6K 3:2 to 30 fps; the same write limit is applied to every mode here.",
+      "Internal SxS recording (XAVC-I, HD ProRes) is limited to 60 fps.",
+    ],
+  });
+}
+
+/* ----------------------------- CANON ----------------------------- */
+{
+  const xfOld = (r, max, isHD = false) => isHD
+    ? [M(r, "XF-AVC Intra 4:2:2 10-bit", max, band(160, 310)), M(r, "XF-AVC Long GOP 4:2:2 10-bit", max, band(50, 50))]
+    : [M(r, "XF-AVC Intra 4:2:2 10-bit", max, band(410, 810)), M(r, "XF-AVC Long GOP 4:2:2 10-bit", max, band(160, 260))];
+  const mp4 = (r, isHD = false, h264max4k = 29.97) => isHD
+    ? [M(r, "MP4 HEVC 4:2:2 10-bit", 59.94, flat(50)), M(r, "MP4 HEVC 4:2:0 10-bit", 59.94, flat(35)), M(r, "MP4 H.264 4:2:0 8-bit", 59.94, flat(35))]
+    : [M(r, "MP4 HEVC 4:2:2 10-bit", 59.94, band(135, 225, false)), M(r, "MP4 HEVC 4:2:0 10-bit", 59.94, band(100, 150, false)),
+       M(r, "MP4 H.264 4:2:0 8-bit", h264max4k, flat(150, 30.01))];
+  const KR = { dci: [4096, 2160, "4K DCI 4096 × 2160"], uhd: [3840, 2160, "4K UHD 3840 × 2160"], k2: [2048, 1080, "2K 2048 × 1080"], hd: [1920, 1080, "HD 1920 × 1080"] };
+
+  cam({
+    brand: "Canon", id: "c300m3", name: "EOS C300 Mark III", fps: FPS_CANON,
+    rasters: { dci: [4096, 2160, "4K DCI 4096 × 2160 (S35)"], uhd: KR.uhd, k2: [2048, 1080, "2K 2048 × 1080 (S16 crop)"], hd: KR.hd },
+    modes: [
+      ...crl("dci", 807, 398, 259, 24, 119.88), ...xfOld("dci", 119.88), ...xfOld("uhd", 119.88),
+      ...crl("k2", 205, 101, 66, 24, 180), ...xfOld("k2", 180, true), ...xfOld("hd", 180, true),
+    ],
+    notes: [
+      "Cinema RAW Light rates from Canon's C300 Mark III / C500 Mark II manual; RAW is a fixed size per frame.",
+      "Above 60 fps is Slow & Fast motion: figures are per second of real shooting time, keeping the 50/60p frame size for XF-AVC.",
+    ],
+  });
+  cam({
+    brand: "Canon", id: "c500m2", name: "EOS C500 Mark II", fps: FPS_CANON,
+    rasters: {
+      ff: [5952, 3140, "5.9K FF 17:9"], ff43: [4192, 3140, "FF 4:3 (anamorphic)"], ff65: [3768, 3140, "FF 6:5 (anamorphic)"],
+      dci: [4096, 2160, "4K DCI 4096 × 2160"], uhd: KR.uhd, k2: [2048, 1080, "2K 2048 × 1080 (S16 crop)"], hd: KR.hd,
+    },
+    modes: [
+      ...crl("ff", 1700, 836, 544, 24, 59.94), ...crl("ff43", 1200, 590, 384, 24, 59.94), ...crl("ff65", 1080, 531, 345, 24, 59.94),
+      ...crl("dci", 807, 398, 259, 24, 119.88), ...xfOld("dci", 119.88), ...xfOld("uhd", 119.88),
+      ...crl("k2", 205, 101, 66, 24, 119.88), ...xfOld("k2", 119.88, true), ...xfOld("hd", 119.88, true),
+    ],
+    notes: [
+      "4K RAW above 60 fps uses the S35 crop. Figures above 60 fps are per second of real shooting time.",
+      "Cinema RAW Light rates from Canon's C300 Mark III / C500 Mark II manual.",
+    ],
+  });
+  cam({
+    brand: "Canon", id: "c400", name: "EOS C400", fps: FPS_CANON,
+    rasters: {
+      ff32: [6000, 4000, "6K FF 3:2 Open Gate"], ff: [6000, 3164, "6K FF 17:9"], s35: [4368, 2304, "4.3K S35 crop"],
+      s16: [2184, 1152, "2.2K S16 crop"], dci: KR.dci, uhd: KR.uhd, k2: KR.k2, hd: KR.hd,
+    },
+    modes: [
+      ...crl("ff32", 2180, 1080, 698, 24, 29.97, { prov: "pub" }),
+      ...crl("ff", 1800, 886, 576, 25, 59.94), ...crl("s35", 954, 470, 306, 25, 100), ...crl("s16", 240, 118, 77, 25, 180),
+      ...["dci", "uhd"].flatMap((r) => [
+        M(r, "XF-AVC / XF-AVC S Intra (high)", 119.88, at(500, 25)), M(r, "XF-AVC / XF-AVC S Intra (mid)", 119.88, at(375, 25)),
+        M(r, "XF-AVC / XF-AVC S Intra (low)", 119.88, at(250, 25)), M(r, "XF-AVC / XF-AVC S Long GOP 4:2:2 10-bit", 119.88, band(150, 250)),
+        M(r, "XF-AVC S Long GOP 4:2:0 8-bit", 59.94, band(100, 150, false)),
+        M(r, "XF-HEVC S 4:2:2 10-bit", 59.94, band(135, 225, false)), M(r, "XF-HEVC S 4:2:0 10-bit", 59.94, band(100, 150, false)),
+      ]),
+      ...["k2", "hd"].flatMap((r) => [
+        M(r, "XF-AVC / XF-AVC S Intra", 180, at(125, 25)), M(r, "XF-AVC / XF-AVC S Long GOP 4:2:2 10-bit", 180, band(50, 50)),
+        M(r, "XF-AVC S Long GOP 4:2:0 8-bit", 59.94, flat(35)),
+        M(r, "XF-HEVC S 4:2:2 10-bit", 59.94, flat(50)), M(r, "XF-HEVC S 4:2:0 10-bit", 59.94, flat(35)),
+      ]),
+    ],
+    notes: [
+      "Rates from Canon's EOS C400 specifications (published at 25/50p) and manual; Intra and RAW are fixed sizes per frame.",
+      "Max frame rates: 6K RAW 60, 4.3K S35 RAW 100, 4K 120, 2K S16 crop 180. The 6K 3:2 Open Gate limit is set at 30 fps (not confirmed).",
+      "Above 60 fps is Slow & Fast motion: figures are per second of real shooting time.",
+    ],
+  });
+  cam({
+    brand: "Canon", id: "c80", name: "EOS C80", fps: FPS_CANON, cap: 735,
+    rasters: { ff: [6000, 3164, "6K FF 17:9"], s35: [4368, 2304, "4.3K S35 crop"], dci: KR.dci, uhd: KR.uhd, k2: KR.k2, hd: KR.hd },
+    modes: [
+      ...crl("ff", null, null, 553, 24, 29.97), ...crl("s35", null, 451, 293, 24, 59.94),
+      ...["dci", "uhd"].flatMap((r) => [
+        M(r, "XF-AVC / XF-AVC S Intra (high)", 119.88, at(480, 24)), M(r, "XF-AVC / XF-AVC S Intra (mid)", 119.88, at(360, 24)),
+        M(r, "XF-AVC / XF-AVC S Intra (low)", 119.88, at(240, 24)), M(r, "XF-AVC / XF-AVC S Long GOP 4:2:2 10-bit", 119.88, band(150, 250)),
+        M(r, "XF-AVC S Long GOP 4:2:0 8-bit", 59.94, band(100, 150, false)),
+        M(r, "XF-HEVC S 4:2:2 10-bit", 59.94, band(135, 225, false)), M(r, "XF-HEVC S 4:2:0 10-bit", 59.94, band(100, 150, false)),
+      ]),
+      ...["k2", "hd"].flatMap((r) => [
+        M(r, "XF-AVC / XF-AVC S Intra", 180, at(120, 24)), M(r, "XF-AVC / XF-AVC S Long GOP 4:2:2 10-bit", 180, band(50, 50)),
+        M(r, "XF-AVC S Long GOP 4:2:0 8-bit", 59.94, flat(35)),
+        M(r, "XF-HEVC S 4:2:2 10-bit", 59.94, flat(50)), M(r, "XF-HEVC S 4:2:0 10-bit", 59.94, flat(35)),
+      ]),
+    ],
+    notes: [
+      "Records to SD cards: combinations above about 700 Mb/s are hidden. 6K RAW is LT only, up to 30 fps.",
+      "Above 60 fps is Slow & Fast motion: figures are per second of real shooting time.",
+    ],
+  });
+  cam({
+    brand: "Canon", id: "c70", name: "EOS C70", fps: FPS_CANON, cap: 650,
+    rasters: { dci: [4096, 2160, "4K DCI 4096 × 2160 (S35)"], uhd: KR.uhd, k2: [2048, 1080, "2K 2048 × 1080 (S16 crop)"], hd: KR.hd },
+    modes: [
+      ...crl("dci", null, 398, 259, 24, 59.94),
+      ...["dci", "uhd"].flatMap((r) => [
+        M(r, "XF-AVC Intra 4:2:2 10-bit (high)", 119.88, band(410, 600)),
+        M(r, "XF-AVC Intra 4:2:2 10-bit (low)", 29.97, flat(240, 30.01)),
+        M(r, "XF-AVC Long GOP 4:2:2 10-bit", 119.88, band(160, 260)), ...mp4(r),
+      ]),
+      ...crl("k2", 205, 101, 66, 24, 59.94),
+      ...["k2", "hd"].flatMap((r) => [...xfOld(r, 180, true), ...mp4(r, true)]),
+    ],
+    notes: [
+      "Records to SD cards: combinations above about 650 Mb/s are hidden (Canon quotes 645 Mb/s for 4K RAW LT at 60p).",
+      "Canon lists 4K 60p XF-AVC Intra at 600 Mb/s for the C70. Above 60 fps is Slow & Fast motion, per second of real shooting time.",
+    ],
+  });
+  cam({
+    brand: "Canon", id: "r5c", name: "EOS R5 C", fps: FPS_CANON, cap: 2600,
+    rasters: {
+      k8: [8192, 4320, "8K FF 8192 × 4320"], k8uhd: [7680, 4320, "8K UHD 7680 × 4320"], s59: [5952, 3140, "5.9K S35 crop"],
+      s29: [2976, 1570, "2.9K S16 crop"], dci: KR.dci, uhd: KR.uhd, hd: KR.hd,
+    },
+    modes: [
+      ...crl("k8", null, 1580, 1030, 24, { ST: 29.97, LT: 59.94 }),
+      M("k8", "MP4 HEVC 4:2:2 10-bit", 29.97, flat(540, 30.01)), M("k8", "MP4 HEVC 4:2:0 10-bit", 29.97, flat(400, 30.01)),
+      M("k8uhd", "MP4 HEVC 4:2:2 10-bit", 29.97, flat(540, 30.01)), M("k8uhd", "MP4 HEVC 4:2:0 10-bit", 29.97, flat(400, 30.01)),
+      ...crl("s59", 1700, 836, 544, 24, { HQ: 29.97, ST: 59.94, LT: 59.94 }),
+      ...crl("s29", 430, 212, 138, 24, 59.94),
+      ...xfOld("dci", 119.88), ...mp4("dci"), ...xfOld("uhd", 119.88), ...mp4("uhd"),
+      ...xfOld("hd", 59.94, true), ...mp4("hd", true),
+    ],
+    notes: [
+      "8K RAW at 50/60p is LT only and needs external power (High Frame Rate mode).",
+      "Frame-rate limits match the bitrate list in Canon's R5 C manual (highest 2,570 Mb/s).",
+    ],
+  });
+}
+
+/* ----------------------------- RED ----------------------------- */
+{
+  const LEG = {
+    k8: [8192, 4320, "8K FF 8192 × 4320"], k8w: [8192, 3456, "8K 2.4:1"], k7: [7168, 3780, "7K FF 7168 × 3780"],
+    k6: [6144, 3240, "6K FF 6144 × 3240"], k6w: [6144, 2592, "6K 2.4:1"], k5: [5120, 2700, "5K FF 5120 × 2700"],
+    k5w: [5120, 2160, "5K 2.4:1"], k4: [4096, 2160, "4K FF 4096 × 2160"], k4w: [4096, 1728, "4K 2.4:1"],
+    k3: [3072, 1620, "3K FF 3072 × 1620"], k2: [2048, 1080, "2K FF 2048 × 1080"], k2w: [2048, 864, "2K 2.4:1"],
+  };
+  const DRAGON6 = { ...LEG, k6: [6144, 3160, "6K FF 6144 × 3160"] };
+  const pick = (src, keys) => Object.fromEntries(keys.map((k) => [k, src[k]]));
+  const rc = (rasters, limits, ratios) => Object.entries(limits).flatMap(([k, max]) => redcodeSet(k, rasters[k][0], rasters[k][1], max, ratios));
+  const R2_22 = [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 18, 22];
+  const R3_22 = [3, 4, 5, 6, 7, 8, 10, 12, 15, 18, 22];
+  const R3_18 = [3, 4, 5, 6, 7, 8, 10, 12, 15, 18];
+  const dsmc2ProRes = (k2max, k4max) => [
+    ...proresSet("k4", 4096, 2160, "apple", ["hq", "422", "lt"], k4max),
+    ...proresSet("k2", 2048, 1080, "apple", ["xq", "4444", "hq", "422", "lt"], k2max),
+  ];
+  const vv8 = { k8: 60, k8w: 75, k7: 60, k6: 75, k6w: 100, k5: 96, k5w: 120, k4: 120, k4w: 150, k3: 150, k2: 240, k2w: 300 };
+  const rcNote = "REDCODE size = width × height × 14 bits ÷ ratio, which matches RED's recording-time calculator (e.g. 8K at 5:1, 24 fps = 2,378 Mb/s).";
+
+  cam({
+    brand: "RED", id: "epic-mx", name: "EPIC (MX 5K)", fps: FPS_RED, addMax: true, cap: 1680,
+    rasters: pick({ ...LEG, k4uhd: [3840, 2160, "4K UHD 3840 × 2160"] }, ["k5", "k4", "k4uhd", "k3", "k2"]),
+    modes: [
+      ...redcodeSet("k5", 5120, 2700, 96, R3_18), ...redcodeSet("k4", 4096, 2160, 120, R3_18),
+      ...redcodeSet("k4uhd", 3840, 2160, 120, R3_18), ...redcodeSet("k3", 3072, 1620, 150, R3_18), ...redcodeSet("k2", 2048, 1080, 240, R3_18),
+    ].map((m) => ({ ...m, prov: "scaled" })),
+    notes: [
+      rcNote,
+      "R3D only. Ratios that exceed about 200 MB/s (REDMAG / MINI-MAG write speed) are hidden.",
+      "RED doesn't list EPIC MX frame-rate limits in its current docs; these (5K 96, 4K 120, 3K 150, 2K 240) are from the original spec and not confirmed.",
+    ],
+  });
+  cam({
+    brand: "RED", id: "epic-dragon", name: "EPIC DRAGON 6K", fps: FPS_RED, addMax: true, cap: 1680,
+    rasters: pick(DRAGON6, ["k6", "k6w", "k5", "k5w", "k4", "k4w", "k3", "k2", "k2w"]),
+    modes: rc(DRAGON6, { k6: 75, k6w: 100, k5: 96, k5w: 120, k4: 120, k4w: 150, k3: 150, k2: 240, k2w: 300 }, R3_22),
+    notes: [rcNote, "R3D only. Ratios above 200 MB/s (MINI-MAG 480GB+) are hidden, so 6K at 24 fps starts at 4:1."],
+  });
+  cam({
+    brand: "RED", id: "weapon-6k", name: "WEAPON 6K (DRAGON)", fps: FPS_RED, addMax: true, cap: 1890,
+    rasters: pick(DRAGON6, ["k6", "k6w", "k5", "k5w", "k4", "k4w", "k3", "k2", "k2w"]),
+    modes: [...rc(DRAGON6, { k6: 75, k6w: 100, k5: 96, k5w: 120, k4: 120, k4w: 150, k3: 150, k2: 240, k2w: 300 }, R2_22), ...dsmc2ProRes(60, 30)],
+    notes: [rcNote, "Uses RED's DSMC2 DRAGON limits: up to 225 MB/s to MINI-MAG; ProRes 4K up to 30 fps, 2K up to 60 fps."],
+  });
+  const helium = {
+    brand: "RED", fps: FPS_RED, addMax: true, cap: 2520,
+    rasters: pick(LEG, Object.keys(vv8)),
+    modes: [...rc(LEG, vv8, R2_22), ...dsmc2ProRes(120, 29.97)],
+  };
+  cam({ ...helium, id: "weapon-8k-s35", name: "WEAPON 8K S35 (HELIUM)",
+    notes: [rcNote, "Up to 300 MB/s to MINI-MAG; RED's best settings are 5:1 at 8K 24 fps and 12:1 at 8K 60 fps.", "ProRes: 4K up to 29.97 fps, 2K up to 120 fps."] });
+  cam({ ...helium, id: "weapon-8k-vv", name: "WEAPON 8K VV (DRAGON VV)",
+    notes: [rcNote, "Same DSMC2 8K frame-rate and media limits as HELIUM and MONSTRO.", "ProRes: 4K up to 30 fps, 2K up to 120 fps."] });
+  cam({ ...helium, id: "monstro", name: "MONSTRO 8K VV (DSMC2)",
+    modes: [...rc(LEG, vv8, R2_22), ...dsmc2ProRes(120, 30)],
+    notes: [rcNote, "Up to 300 MB/s to MINI-MAG (480GB and larger).", "ProRes: 4K up to 30 fps, 2K up to 120 fps. DNxHR not included."] });
+
+  const KO = {
+    k6: [6144, 3240, "6K 17:9 6144 × 3240"], k6w: [6144, 2592, "6K 2.4:1 6144 × 2592"], k5: [5120, 2700, "5K 17:9 5120 × 2700"],
+    k4: [4096, 2160, "4K 17:9 4096 × 2160"], uhd: [3840, 2160, "UHD 3840 × 2160 (ProRes)"], k2: [2048, 1080, "2K 17:9 2048 × 1080"],
+    hd: [1920, 1080, "HD 1920 × 1080 (ProRes)"],
+  };
+  cam({
+    brand: "RED", id: "komodo", name: "KOMODO 6K", fps: FPS_RED, addMax: true, rasters: KO,
+    modes: [
+      ...r3dSet("k6", 6144, 3240, 40), ...r3dSet("k6w", 6144, 2592, 50, true), ...r3dSet("k5", 5120, 2700, 48, true),
+      ...r3dSet("k4", 4096, 2160, 60, true), ...r3dSet("k2", 2048, 1080, 120, true),
+      ...proresSet("k4", 4096, 2160, "apple", ["hq", "422"], 60), ...proresSet("uhd", 3840, 2160, "apple", ["hq", "422"], 60),
+      ...proresSet("k2", 2048, 1080, "apple", ["hq", "422"], 120), ...proresSet("hd", 1920, 1080, "apple", ["hq", "422"], 120),
+    ],
+    notes: [
+      "R3D NE rates from RED's published 6K 17:9 24p figures (HQ 239, MQ 168, LQ 105, ELQ 65 MB/s), scaled by photosite count for other rasters.",
+      "ELQ needs KOMODO firmware 1.7 or later.",
+    ],
+  });
+  cam({
+    brand: "RED", id: "komodo-x", name: "KOMODO-X 6K", fps: FPS_RED, addMax: true,
+    rasters: pick(KO, ["k6", "k5", "k4", "k2"]),
+    modes: [
+      ...r3dSet("k6", 6144, 3240, 80), ...r3dSet("k5", 5120, 2700, 96, true), ...r3dSet("k4", 4096, 2160, 120, true), ...r3dSet("k2", 2048, 1080, 240, true),
+      ...proresSet("k4", 4096, 2160, "apple", ["xq", "4444", "hq", "422", "lt"], { xq: 60, "4444": 80, hq: 120, "422": 120, lt: 120 }),
+    ],
+    notes: ["R3D NE rates from RED's KOMODO-X guide (6K 17:9 24p: HQ 239, MQ 168, LQ 105, ELQ 65 MB/s).", "ProRes is recorded at 4K 4096 × 2160."],
+  });
+  const VR = {
+    k8: [8192, 4320, "8K 17:9 8192 × 4320"], k8w: [8192, 3456, "8K 2.4:1 8192 × 3456"], k7: [7168, 3780, "7K 17:9 7168 × 3780"],
+    k6: [6144, 3240, "6K 17:9 6144 × 3240"], k5: [5120, 2700, "5K 17:9 5120 × 2700"], k4: [4096, 2160, "4K 17:9 4096 × 2160"],
+    uhd: [3840, 2160, "UHD 3840 × 2160 (ProRes)"], k3: [3072, 1620, "3K 17:9 3072 × 1620"], k2: [2048, 1080, "2K 17:9 2048 × 1080"],
+    hd: [1920, 1080, "HD 1920 × 1080 (ProRes)"],
+  };
+  const all5 = ["xq", "4444", "hq", "422", "lt"];
+  cam({
+    brand: "RED", id: "v-raptor", name: "V-RAPTOR 8K VV / [X]", fps: FPS_RED, addMax: true, rasters: VR,
+    modes: [
+      ...r3dSet("k8", 8192, 4320, { HQ: 60, MQ: 60, LQ: 120, ELQ: 120 }),
+      ...r3dSet("k8w", 8192, 3456, { HQ: 72, MQ: 72, LQ: 150, ELQ: 150 }, true),
+      ...r3dSet("k7", 7168, 3780, { HQ: 72, MQ: 72, LQ: 140, ELQ: 140 }, true),
+      ...r3dSet("k6", 6144, 3240, { HQ: 96, MQ: 160, LQ: 160, ELQ: 160 }),
+      ...r3dSet("k5", 5120, 2700, 192, true), ...r3dSet("k4", 4096, 2160, 240, true),
+      ...r3dSet("k3", 3072, 1620, 320, true), ...r3dSet("k2", 2048, 1080, 480, true),
+      ...proresSet("k4", 4096, 2160, "apple", all5, 120), ...proresSet("uhd", 3840, 2160, "apple", all5, 120),
+      ...proresSet("hd", 1920, 1080, "apple", all5, 120),
+    ],
+    notes: [
+      "R3D NE rates from RED's V-RAPTOR guides (8K 17:9 24p: HQ 425, MQ 298, LQ 186, ELQ 100 MB/s; 6K matches KOMODO-X).",
+      "RED limits HQ/MQ to 60 fps at 8K and HQ to 96 fps at 6K. The 7K and 8K 2.4:1 HQ/MQ limits (72 fps) are estimated from those.",
+      "ProRes needs current firmware; it records up to 4K 120 fps.",
+    ],
+  });
+}
+
+/* ======================================================================
+   UI
+   ====================================================================== */
+const $ = (id) => document.getElementById(id);
+const els = { brand: $("brand"), model: $("model"), raster: $("raster"), fps: $("fps"), codec: $("codec"), dur: $("dur") };
+let unit = "min";
+const BRANDS = ["Sony", "Canon", "RED", "ARRI"];
+
+const near = (a, b) => Math.abs(a - b) < 0.005;
+const fpsLabel = (f) => ({ 23.976: "23.98", 47.952: "47.95" }[f] ?? String(f));
+const nf = (n, d = 0) => n.toLocaleString("en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+function rateOf(camObj, m, f) {
+  if (f > m.max + 0.005) return null;
+  if (m.min && f < m.min) return null;
+  const r = m.rate(f);
+  if (r == null || !isFinite(r)) return null;
+  const cap = m.noCap ? null : (m.cap ?? camObj.cap);
+  if (cap && r > cap) return null;
+  return r;
+}
+function fpsOptions(c, rk) {
+  const modes = c.modes.filter((m) => m.r === rk);
+  let set = new Set(c.fps);
+  if (c.addMax) modes.forEach((m) => set.add(m.max));
+  return [...set].sort((a, b) => a - b).filter((f) => modes.some((m) => rateOf(c, m, f) != null));
+}
+
+function fill(sel, items, keep) {
+  const prev = keep ?? sel.value;
+  sel.innerHTML = "";
+  for (const it of items) {
+    const o = document.createElement("option");
+    o.value = it.value; o.textContent = it.label; sel.appendChild(o);
+  }
+  if (items.some((i) => String(i.value) === String(prev))) sel.value = prev;
+  sel.disabled = items.length === 0;
+}
+
+const current = () => CAMERAS.find((c) => c.id === els.model.value);
+
+function renderBrand() {
+  fill(els.brand, BRANDS.map((b) => ({ value: b, label: b })));
+}
+function renderModel() {
+  fill(els.model, CAMERAS.filter((c) => c.brand === els.brand.value).map((c) => ({ value: c.id, label: c.name })));
+}
+function renderRaster() {
+  const c = current();
+  const keys = Object.keys(c.rasters).filter((k) => c.modes.some((m) => m.r === k) && fpsOptions(c, k).length);
+  fill(els.raster, keys.map((k) => {
+    const [w, h, label] = c.rasters[k];
+    const dims = `${w} × ${h}`;
+    return { value: k, label: label.includes(dims) ? label : `${label} — ${dims}` };
+  }));
+}
+function renderFps() {
+  const c = current();
+  const prev = els.fps.value;
+  const opts = fpsOptions(c, els.raster.value);
+  fill(els.fps, opts.map((f) => ({ value: f, label: fpsLabel(f) + " fps" })));
+  if (!opts.some((f) => String(f) === prev)) {
+    const pref = [25, 24, 23.976].find((p) => opts.includes(p)) ?? opts[0];
+    if (pref != null) els.fps.value = pref;
+  }
+}
+function codecList() {
+  const c = current(); const f = Number(els.fps.value);
+  return c.modes.map((m, i) => ({ m, i, r: rateOf(c, m, f) })).filter((x) => x.m.r === els.raster.value && x.r != null);
+}
+function fmtRate(mbps) { return mbps >= 1000 ? `${nf(mbps / 1000, 2)} Gb/s` : `${nf(mbps, mbps < 100 ? 1 : 0)} Mb/s`; }
+function renderCodec() {
+  const prevLabel = els.codec.selectedOptions[0]?.dataset.c;
+  const list = codecList();
+  els.codec.innerHTML = "";
+  for (const x of list) {
+    const o = document.createElement("option");
+    o.value = x.i; o.dataset.c = x.m.c; o.textContent = `${x.m.c}  ·  ${fmtRate(x.r)}`;
+    els.codec.appendChild(o);
+  }
+  const same = list.find((x) => x.m.c === prevLabel);
+  if (same) els.codec.value = same.i;
+  els.codec.disabled = list.length === 0;
+}
+
+function seconds() {
+  const v = parseFloat(els.dur.value);
+  if (!isFinite(v) || v < 0) return null;
+  return unit === "min" ? v * 60 : v * 3600;
+}
+function fmtGB(gb) {
+  if (gb >= 1000) return { n: nf(gb, gb >= 10000 ? 0 : 1), u: "GB" };
+  if (gb >= 100) return { n: nf(gb, 1), u: "GB" };
+  return { n: nf(gb, 2), u: "GB" };
+}
+function fmtDur(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.round(sec % 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+const PROV = {
+  pub: ["pub", "Manufacturer figure"],
+  scaled: ["scaled", "Scaled from manufacturer figure"],
+  est: ["est", "Estimate"],
+};
+
+let lastSummary = "";
+function renderResult() {
+  const c = current();
+  const m = c.modes[Number(els.codec.value)];
+  const f = Number(els.fps.value);
+  const sec = seconds();
+  ["s-brand", "s-model", "s-raster", "s-fps", "s-codec", "s-dur"].forEach((id) => $(id).classList.add("done"));
+  if (!m || sec == null) {
+    $("total").textContent = "—"; $("alt").innerHTML = "&nbsp;";
+    $("summary").textContent = sec == null ? "Enter a duration of zero or more." : "No codec available for this combination.";
+    return;
+  }
+  const mbps = rateOf(c, m, f);
+  const gb = (mbps * sec) / 8 / 1000;
+  const bytes = gb * 1e9;
+  const g = fmtGB(gb);
+  $("total").innerHTML = `${g.n}<span class="unit">${g.u}</span>`;
+  $("alt").textContent = `${nf(gb / 1000, 3)} TB  ·  ${nf(bytes / 1024 ** 3, 1)} GiB  ·  ${nf(bytes / 1024 ** 4, 3)} TiB`;
+  $("st-rate").innerHTML = `${nf(mbps, mbps < 100 ? 1 : 0)} Mb/s<br><span style="color:var(--mon-dim)">${nf(mbps / 8, 1)} MB/s</span>`;
+  $("st-hour").textContent = `${nf(mbps * 3600 / 8000, 1)} GB`;
+  $("st-min").textContent = `${nf(mbps * 60 / 8000, 2)} GB`;
+  $("st-frames").textContent = nf(Math.round(sec * f));
+  const [w, h] = c.rasters[m.r];
+  $("osd-cam").textContent = `${c.brand} ${c.name}`;
+  $("osd-fmt").textContent = `${w}×${h} · ${fpsLabel(f)}p · ${fmtDur(sec)}`;
+  const durText = unit === "min" ? `${els.dur.value} min` : `${els.dur.value} h`;
+  lastSummary = `${c.brand} ${c.name} · ${c.rasters[m.r][2]} (${w}×${h}) · ${fpsLabel(f)} fps · ${m.c} · ${durText} = ${g.n} ${g.u} (${nf(mbps, 0)} Mb/s)`;
+  $("summary").textContent = `${m.c} at ${fpsLabel(f)} fps for ${durText}.`;
+  const [cls, label] = PROV[m.prov] ?? PROV.pub;
+  const p = $("prov"); p.className = "badge " + cls; p.textContent = label;
+  const notes = [...(c.notes || [])];
+  if (f > 60.01 && (c.brand === "Sony" || c.brand === "Canon")) notes.unshift("High-speed mode: storage is per second of real shooting time, not playback time.");
+  $("notes").innerHTML = "";
+  notes.forEach((n) => { const li = document.createElement("li"); li.textContent = n; $("notes").appendChild(li); });
+  save();
+}
+
+function cascade(from) {
+  const order = ["brand", "model", "raster", "fps", "codec"];
+  const start = order.indexOf(from) + 1;
+  if (start <= 1) renderModel();
+  if (start <= 2) renderRaster();
+  if (start <= 3) renderFps();
+  if (start <= 4) renderCodec();
+  renderResult();
+}
+
+function setUnit(u, convert = true) {
+  if (u === unit) return;
+  const v = parseFloat(els.dur.value);
+  if (convert && isFinite(v)) els.dur.value = String(+(u === "hr" ? v / 60 : v * 60).toFixed(4));
+  unit = u;
+  $("u-min").setAttribute("aria-pressed", String(u === "min"));
+  $("u-hr").setAttribute("aria-pressed", String(u === "hr"));
+  renderResult();
+}
+
+function save() {
+  try {
+    localStorage.setItem("cameraCalc", JSON.stringify({
+      brand: els.brand.value, model: els.model.value, raster: els.raster.value, fps: els.fps.value,
+      codec: els.codec.selectedOptions[0]?.dataset.c, dur: els.dur.value, unit,
+    }));
+  } catch (e) { /* storage unavailable */ }
+}
+function restore() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem("cameraCalc") || "null"); } catch (e) { s = null; }
+  return s;
+}
+
+/* wire up */
+els.brand.addEventListener("change", () => cascade("brand"));
+els.model.addEventListener("change", () => cascade("model"));
+els.raster.addEventListener("change", () => cascade("raster"));
+els.fps.addEventListener("change", () => cascade("fps"));
+els.codec.addEventListener("change", () => renderResult());
+els.dur.addEventListener("input", renderResult);
+$("u-min").addEventListener("click", () => setUnit("min"));
+$("u-hr").addEventListener("click", () => setUnit("hr"));
+document.querySelectorAll(".chips button").forEach((b) => b.addEventListener("click", () => {
+  const mins = Number(b.dataset.min);
+  if (mins >= 60) { unit = "min"; setUnit("hr", false); els.dur.value = String(mins / 60); }
+  else { unit = "hr"; setUnit("min", false); els.dur.value = String(mins); }
+  renderResult();
+}));
+$("sheet").addEventListener("submit", (e) => e.preventDefault());
+$("copy").addEventListener("click", async () => {
+  const btn = $("copy");
+  try { await navigator.clipboard.writeText(lastSummary); btn.textContent = "Copied"; }
+  catch (e) {
+    $("summary").textContent = lastSummary; const r = document.createRange(); r.selectNodeContents($("summary"));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Selected — press Ctrl/⌘ C";
+  }
+  setTimeout(() => (btn.textContent = "Copy result"), 1800);
+});
+
+/* initial state: last session, else a realistic example (Sony FX6, UHD, 25 fps, XAVC-I, 60 min) */
+(function init() {
+  const s = restore() || { brand: "Sony", model: "fx6", raster: "uhd", fps: "25", codec: "XAVC-I Class 300 (Intra)", dur: "60", unit: "min" };
+  renderBrand(); els.brand.value = BRANDS.includes(s.brand) ? s.brand : "Sony";
+  renderModel(); if (CAMERAS.some((c) => c.id === s.model && c.brand === els.brand.value)) els.model.value = s.model;
+  renderRaster(); if ([...els.raster.options].some((o) => o.value === s.raster)) els.raster.value = s.raster;
+  els.fps.value = s.fps; renderFps(); if ([...els.fps.options].some((o) => o.value === s.fps)) els.fps.value = s.fps;
+  renderCodec();
+  const opt = [...els.codec.options].find((o) => o.dataset.c === s.codec); if (opt) els.codec.value = opt.value;
+  if (s.dur != null) els.dur.value = s.dur;
+  if (s.unit === "hr") { unit = "min"; setUnit("hr", false); }
+  renderResult();
+})();
+
+// exposed for testing
+window.__cameraCalc = { CAMERAS, rateOf, fpsOptions };
+})();
+</script>
+</body>
+</html>
