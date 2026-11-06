@@ -25,7 +25,8 @@ GB = Mb/s × seconds ÷ 8 ÷ 1000        (decimal GB, as on card labels and macO
 |---|---|
 | ARRIRAW | photosites × bit depth (12-bit; 13-bit on ALEXA 35) + 221 KB frame header. Matches ARRI's published 20.9 MB/frame (Mini LF OG) and 1,386 / 2,214 Mb/s (2.8K / 3.4K OG at 24 fps). |
 | ARRICORE | 50% of ARRIRAW. ARRI only publishes it as "half the data rate of ARRIRAW", so it's flagged as an estimate. |
-| ProRes (ARRI, VENICE 2) | Bits per pixel from the maker's own tables (about 12% above Apple's targets). |
+| ProRes (ARRI) | Bits per pixel from ARRI's own tables (about 12% above Apple's targets). |
+| ProRes (VENICE 2) | Matched to Sony's VENICE file-size calculator: 4K 25p 4444 XQ = 216.32 MB/s. 4444 and HQ keep Sony's 9:6:4 ratio. About 13% below Sony's spec maximum. |
 | ProRes (others) | Apple ProRes white-paper targets, scaled by pixel count. |
 | X-OCN | Sony's published Mb/s per imager mode (VENICE 2 / X-OCN white paper); unlisted modes scaled by photosite count. BURANO derived from Sony record times. |
 | REDCODE (DSMC1/DSMC2) | width × height × 14 bits ÷ ratio. Matches RED's recording-time calculator to 0.02%. |
@@ -43,7 +44,7 @@ High-speed modes (Sony S&Q, Canon Slow & Fast) are calculated per second of real
 | ALEXA Mini 3.4K OG ARRIRAW 24 fps | 2,214 Mb/s | 2,214 Mb/s (ARRI) |
 | AMIRA UHD ProRes 4444 XQ / HD 4444 XQ 24 fps | 1,784 / 446 Mb/s | 1,784 / 446 Mb/s (ARRI) |
 | VENICE 2 8.2K 17:9 X-OCN ST 60 fps | 6,605 Mb/s | 6,606 Mb/s (Sony) |
-| VENICE 2 4K ProRes 4444 XQ 24 fps | 1,911 Mb/s | 1,911 Mb/s (Sony) |
+| VENICE 2 4K ProRes 4444 XQ 25 fps | 216.3 MB/s | 216.32 MB/s (Sony calculator) |
 | MONSTRO 8K REDCODE 5:1 24 fps | 2,378 Mb/s | 2,378 Mb/s (RED) |
 | V-RAPTOR 8K ELQ 24 fps | 800 Mb/s | 100 MB/s (RED) |
 | Canon C400 6K RAW HQ 25 fps | 1,800 Mb/s | 1,800 Mb/s (Canon) |

@@ -283,7 +283,8 @@ const band = (lo, hi, hfr = true) => (f) => f <= 30.01 ? lo : f <= 60.01 ? hi : 
 const PR = {
   apple: { proxy: 0.730, lt: 1.648, "422": 2.369, hq: 3.551, "4444": 5.326, xq: 7.992 },
   arri:  { lt: 1.849, "422": 2.652, hq: 3.979, "4444": 5.968, xq: 8.962 },
-  sony:  { hq: 4.0, "4444": 6.0, xq: 9.0 },
+  // Sony VENICE calculator: 4K 25p 4444 XQ = 216.32 MB/s (7.824 bpp). 4444 and HQ keep Sony's 9:6:4 spec ratio.
+  sony:  { hq: 3.477, "4444": 5.216, xq: 7.824 },
 };
 const PRN = { proxy: "ProRes 422 Proxy", lt: "ProRes 422 LT", "422": "ProRes 422", hq: "ProRes 422 HQ", "4444": "ProRes 4444", xq: "ProRes 4444 XQ" };
 const ARRIRAW_HEADER = 221000; // bytes per frame, fits ARRI's published MB/frame figures
@@ -310,7 +311,8 @@ const FPS_CANON = [23.976, 24, 25, 29.97, 50, 59.94, 100, 119.88, 150, 180];
 /* ---------- mode builders ---------- */
 const M = (r, c, max, rate, x = {}) => ({ r, c, max, rate, prov: "pub", ...x });
 const proresSet = (r, w, h, profile, flavours, max, x = {}) =>
-  flavours.map((k) => M(r, PRN[k], typeof max === "object" ? max[k] : max, bpp(w, h, PR[profile][k]), x));
+  flavours.map((k) => M(r, PRN[k], typeof max === "object" ? max[k] : max, bpp(w, h, PR[profile][k]),
+    profile === "sony" && k !== "xq" ? { prov: "scaled", ...x } : x));
 const xocn = (r, w, h, max, pub, coef, x = {}) =>
   ["XT", "ST", "LT"].map((q, i) => pub
     ? M(r, "X-OCN " + q, max, at(pub[i], 24), x)
@@ -577,6 +579,7 @@ const cam = (o) => CAMERAS.push(o);
       "X-OCN rates are Sony's (FDTimes VENICE 2 report / X-OCN white paper). Modes Sony doesn't list are scaled by photosite count.",
       "Combinations above the AXS S66 card's write speed (about 6.6 Gb/s) are hidden, so X-OCN XT stops at 30p in 8.2K 17:9.",
       "ProRes is recorded at 4K or QFHD from the chosen imager mode, up to that mode's frame-rate limit (75 fps at most).",
+      "ProRes rates match Sony's VENICE file-size calculator (4K 25p 4444 XQ = 216.32 MB/s). That is about 13% below Sony's spec maximum (1,911 Mb/s at 24p), so allow some headroom. Sony's calculator also divides by 1,024 for GB, so its 760.5 GB is 778.8 GB here.",
     ],
   });
 
@@ -603,7 +606,7 @@ const cam = (o) => CAMERAS.push(o);
     notes: [
       "X-OCN rates are Sony's for 6K 3:2, 6K 17:9, 4K 4:3, 4K 17:9 and 3.8K 16:9; the other modes are scaled by photosite count.",
       "Max frame rates from Sony's VENICE 2 6K format poster. 5.7K 16:9 and 4K 6:5 limits are not confirmed and set at 60 fps.",
-      "ProRes 4K/QFHD is downsampled from the chosen imager mode.",
+      "ProRes 4K/QFHD is downsampled from the chosen imager mode. Rates match Sony's VENICE file-size calculator, about 13% below Sony's spec maximum.",
     ],
   });
   cam({
