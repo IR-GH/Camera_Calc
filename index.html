@@ -263,32 +263,6 @@ footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line);
     </aside>
   </div>
 
-  <section class="method" aria-label="How the numbers are worked out">
-    <div>
-      <h2>The maths</h2>
-      <p>Every format is reduced to a data rate in megabits per second at the chosen frame rate, then:</p>
-      <div class="formula">GB = Mb/s × seconds ÷ 8 ÷ 1000</div>
-      <p>Windows reports sizes in GiB (1024³ bytes), so the GiB figure is shown too. macOS and card labels use GB.</p>
-    </div>
-    <div>
-      <h2>Where the rates come from</h2>
-      <ul>
-        <li><b>RAW</b> (ARRIRAW, X-OCN, R3D, Cinema RAW Light): the size per frame from the maker, times the frame rate. ARRIRAW is uncompressed, so it is worked out from photosites × bit depth plus the ARRI frame header.</li>
-        <li><b>Intra codecs</b> (XAVC-I, ProRes): fixed size per frame, so the rate scales with fps.</li>
-        <li><b>Long GOP codecs</b> (XAVC S/HS/L, XF-AVC LGOP, HEVC): the bitrate printed in the camera manual for that frame-rate band.</li>
-        <li><b>ProRes</b>: ARRI and Sony VENICE 2 publish rates about 12% above Apple's white-paper targets (what their record-time displays use). Other cameras use Apple's targets.</li>
-      </ul>
-    </div>
-    <div>
-      <h2>Things to know</h2>
-      <ul>
-        <li>Only the combinations each camera can record are offered. Options over a camera's media write speed are hidden.</li>
-        <li>High-speed modes (S&amp;Q, Slow &amp; Fast) are calculated per second of real shooting time.</li>
-        <li>ProRes, XAVC and HEVC are variable bit rate; real files land close to, and usually just under, these figures.</li>
-        <li>Badges show how firm each figure is: <b>green</b> published, <b>amber</b> scaled from a published figure, <b>red</b> estimate.</li>
-      </ul>
-    </div>
-  </section>
 
   <footer>Camera Calc · data checked November 2026 against ARRI, Sony, Canon and RED documentation. Always confirm against the current camera firmware before a big job.</footer>
 </div>
